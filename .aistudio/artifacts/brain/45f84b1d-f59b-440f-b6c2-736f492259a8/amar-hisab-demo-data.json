@@ -1,0 +1,341 @@
+{
+  "app": "AmarHisab",
+  "version": 5,
+  "exportedAt": "2026-10-27T12:58:00.000Z",
+  "settings": {
+    "theme": "light",
+    "numerals": "en",
+    "cardTheme": "emerald"
+  },
+  "transactionsByMonth": {
+    "2026-08": [
+      { "id": 80101, "amount": 52000, "type": "income", "note": "মাসিক অফিস বেতন", "category": "salary", "time": "02 তারিখ · 10:15 AM", "monthKey": "2026-08" },
+      { "id": 80102, "amount": 8500, "type": "income", "note": "ওয়েব ডিজাইন ফ্রিল্যান্স প্রজেক্ট", "category": "freelance", "time": "11 তারিখ · 04:30 PM", "monthKey": "2026-08" },
+      { "id": 80103, "amount": 16500, "type": "expense", "note": "বাসা ভাড়া ও সার্ভিস চার্জ", "category": "housing", "time": "05 তারিখ · 11:00 AM", "monthKey": "2026-08" },
+      { "id": 80104, "amount": 7450, "type": "expense", "note": "মাসিক চাল, তেল ও মুদি বাজার", "category": "groceries", "time": "07 তারিখ · 07:20 PM", "monthKey": "2026-08" },
+      { "id": 80105, "amount": 3200, "type": "expense", "note": "বিদ্যুৎ, গ্যাস ও ইন্টারনেট বিল", "category": "utilities", "time": "12 তারিখ · 02:10 PM", "monthKey": "2026-08" },
+      { "id": 80106, "amount": 2850, "type": "expense", "note": "অফিস যাতায়াত ও সিএনজি ভাড়া", "category": "transport", "time": "19 তারিখ · 06:45 PM", "monthKey": "2026-08" },
+      { "id": 80107, "amount": 4200, "type": "expense", "note": "বাবা-মায়ের ওষুধ ও চেকআপ", "category": "health", "time": "24 তারিখ · 08:00 PM", "monthKey": "2026-08" }
+    ],
+    "2026-09": [
+      { "id": 80201, "amount": 52000, "type": "income", "note": "মাসিক অফিস বেতন", "category": "salary", "time": "01 তারিখ · 10:05 AM", "monthKey": "2026-09" },
+      { "id": 80202, "amount": 14000, "type": "income", "note": "ই-কমার্স ক্লায়েন্ট কনসালটেন্সি", "category": "freelance", "time": "14 তারিখ · 09:20 PM", "monthKey": "2026-09" },
+      { "id": 80203, "amount": 3500, "type": "income", "note": "সঞ্চয়পত্র মুনাফা", "category": "investment", "time": "22 তারিখ · 01:15 PM", "monthKey": "2026-09" },
+      { "id": 80204, "amount": 16500, "type": "expense", "note": "বাসা ভাড়া ও সার্ভিস চার্জ", "category": "housing", "time": "04 তারিখ · 10:40 AM", "monthKey": "2026-09" },
+      { "id": 80205, "amount": 8920, "type": "expense", "note": "স্বপ্ন সুপারশপ ও কাঁচা বাজার", "category": "groceries", "time": "08 তারিখ · 08:15 PM", "monthKey": "2026-09" },
+      { "id": 80206, "amount": 3450, "type": "expense", "note": "ডেসকো বিদ্যুৎ ও ওয়াইফাই বিল", "category": "utilities", "time": "10 তারিখ · 03:50 PM", "monthKey": "2026-09" },
+      { "id": 80207, "amount": 3100, "type": "expense", "note": "পারিবারিক ডিনার ও রেস্টুরেন্ট", "category": "food", "time": "16 তারিখ · 09:45 PM", "monthKey": "2026-09" },
+      { "id": 80208, "amount": 5600, "type": "expense", "note": "পোশাক ও জুতা কেনাকাটা", "category": "shopping", "time": "21 তারিখ · 07:30 PM", "monthKey": "2026-09" },
+      { "id": 80209, "amount": 2600, "type": "expense", "note": "মেট্রোরেল পাস ও রিকশা ভাড়া", "category": "transport", "time": "26 তারিখ · 05:20 PM", "monthKey": "2026-09" }
+    ],
+    "2026-10": [
+      { "id": 80301, "amount": 55000, "type": "income", "note": "মাসিক বেতন (ইনক্রিমেন্ট সহ)", "category": "salary", "time": "02 তারিখ · 10:30 AM", "monthKey": "2026-10" },
+      { "id": 80302, "amount": 18500, "type": "income", "note": "অ্যাপ ডেভেলপমেন্ট মাইলস্টোন পেমেন্ট", "category": "freelance", "time": "09 তারিখ · 11:20 PM", "monthKey": "2026-10" },
+      { "id": 80303, "amount": 6200, "type": "income", "note": "পার্টনারশিপ ব্যবসার লভ্যাংশ", "category": "business", "time": "15 তারিখ · 04:10 PM", "monthKey": "2026-10" },
+      { "id": 80304, "amount": 16500, "type": "expense", "note": "বাসা ভাড়া ও গ্যারেজ চার্জ", "category": "housing", "time": "05 তারিখ · 11:15 AM", "monthKey": "2026-10" },
+      { "id": 80305, "amount": 6480, "type": "expense", "note": "চাল, ডাল, তেল ও সপ্তাহের বাজার", "category": "groceries", "time": "06 তারিখ · 07:50 PM", "monthKey": "2026-10" },
+      { "id": 80306, "amount": 2150, "type": "expense", "note": "মাছ, মাংস ও তাজা সবজি", "category": "groceries", "time": "13 তারিখ · 09:10 AM", "monthKey": "2026-10" },
+      { "id": 80307, "amount": 1200, "type": "expense", "note": "ব্রডব্যান্ড ফাইবার ইন্টারনেট বিল", "category": "utilities", "time": "10 তারিখ · 01:25 PM", "monthKey": "2026-10" },
+      { "id": 80308, "amount": 1850, "type": "expense", "note": "অফিস লাঞ্চ ও কফি মিটিং", "category": "food", "time": "14 তারিখ · 02:30 PM", "monthKey": "2026-10" },
+      { "id": 80309, "amount": 2450, "type": "expense", "note": "মেট্রোরেল কার্ড রিচার্জ ও উবার", "category": "transport", "time": "17 তারিখ · 06:40 PM", "monthKey": "2026-10" },
+      { "id": 80310, "amount": 3200, "type": "expense", "note": "অনলাইন কোর্স ও বই কেনা", "category": "education", "time": "20 তারিখ · 10:00 PM", "monthKey": "2026-10" },
+      { "id": 80311, "amount": 1950, "type": "expense", "note": "ডেন্টাল চেকআপ ও ফার্মেসি", "category": "health", "time": "23 তারিখ · 07:15 PM", "monthKey": "2026-10" },
+      { "id": 80312, "amount": 4500, "type": "expense", "note": "বাড়িতে বাবা-মায়ের হাতখরচ পাঠানো", "category": "family", "time": "25 তারিখ · 12:05 PM", "monthKey": "2026-10" }
+    ]
+  },
+  "debtProfiles": [
+    {
+      "id": 901,
+      "name": "তানভীর আহমেদ (বন্ধু)",
+      "phone": "01711-223344",
+      "address": "মিরপুর ১০, ঢাকা",
+      "debt": 2000,
+      "credit": 7500,
+      "transactions": [
+        { "id": 9011, "type": "credit", "amount": 5000, "note": "জরুরি প্রয়োজনে বিকাশে ধার দেওয়া", "time": "04 তারিখ · 08:30 PM" },
+        { "id": 9012, "type": "debt", "amount": 2000, "note": "আংশিক টাকা ফেরত পাওয়া গেছে", "time": "12 তারিখ · 05:15 PM" },
+        { "id": 9013, "type": "credit", "amount": 2500, "note": "কক্সবাজার ট্যুরের অগ্রিম টিকেট বাবদ পাওনা", "time": "19 তারিখ · 10:40 PM" }
+      ]
+    },
+    {
+      "id": 902,
+      "name": "বিসমিল্লাহ জেনারেল স্টোর",
+      "phone": "01819-556677",
+      "address": "ব্লক সি, বাসার নিচতলা",
+      "debt": 3420,
+      "credit": 1500,
+      "transactions": [
+        { "id": 9021, "type": "debt", "amount": 2150, "note": "মাসের প্রথম সপ্তাহের মুদি খাতা বাকি", "time": "07 তারিখ · 09:00 PM" },
+        { "id": 9022, "type": "credit", "amount": 1500, "note": "নগদ আংশিক পরিশোধ", "time": "14 তারিখ · 08:10 PM" },
+        { "id": 9023, "type": "debt", "amount": 1270, "note": "চাল ২৫ কেজি ও দুধ বাকি", "time": "21 তারিখ · 07:45 PM" }
+      ]
+    },
+    {
+      "id": 903,
+      "name": "মাহমুদুল হাসান (ক্লায়েন্ট)",
+      "phone": "01912-889900",
+      "address": "বনানী, রোড ১১, ঢাকা",
+      "debt": 0,
+      "credit": 12000,
+      "transactions": [
+        { "id": 9031, "type": "credit", "amount": 12000, "note": "ইনভেন্টরি সফটওয়্যার ফাইনাল কিস্তি পাওনা", "time": "16 তারিখ · 04:20 PM" }
+      ]
+    },
+    {
+      "id": 904,
+      "name": "রাশেদ করিম (খালাতো ভাই)",
+      "phone": "01675-443322",
+      "address": "উত্তরা সেক্টর ৭, ঢাকা",
+      "debt": 6000,
+      "credit": 2000,
+      "transactions": [
+        { "id": 9041, "type": "debt", "amount": 6000, "note": "মোবাইল সার্ভিসিংয়ের সময় ধার নেওয়া", "time": "09 তারিখ · 03:00 PM" },
+        { "id": 9042, "type": "credit", "amount": 2000, "note": "নগদে প্রথম কিস্তি পরিশোধ", "time": "22 তারিখ · 06:30 PM" }
+      ]
+    },
+    {
+      "id": 905,
+      "name": "নাসির ইলেকট্রনিক্স অ্যান্ড গ্যাজেট",
+      "phone": "01755-998811",
+      "address": "বসুন্ধরা সিটি, লেভেল ৫",
+      "debt": 4500,
+      "credit": 4500,
+      "transactions": [
+        { "id": 9051, "type": "debt", "amount": 4500, "note": "রাউটার ও ইউপিএস বাকি ক্রয়", "time": "03 তারিখ · 07:00 PM" },
+        { "id": 9052, "type": "credit", "amount": 4500, "note": "সম্পূর্ণ বকেয়া পরিশোধিত", "time": "18 তারিখ · 05:50 PM" }
+      ]
+    }
+  ],
+  "budgets": [
+    {
+      "id": 701,
+      "name": "মাসিক কাঁচা বাজার ও গ্রোসারি",
+      "limit": 8500,
+      "loggedToExpense": false,
+      "items": [
+        { "id": 7011, "name": "মিনিকেট চাল (২৫ কেজি বস্তা)", "cost": 1850, "bought": true },
+        { "id": 7012, "name": "সয়াবিন তেল (৫ লিটার)", "cost": 890, "bought": true },
+        { "id": 7013, "name": "দেশি মুরগি ও গরুর মাংস", "cost": 2400, "bought": true },
+        { "id": 7014, "name": "মসুর ডাল, ছোলা ও মসলাপাতি", "cost": 1150, "bought": false },
+        { "id": 7015, "name": "সাপ্তাহিক মাছ ও শাকসবজি", "cost": 1650, "bought": false }
+      ]
+    },
+    {
+      "id": 702,
+      "name": "বাসা ও ডেস্ক সেটআপ আপগ্রেড",
+      "limit": 12000,
+      "loggedToExpense": false,
+      "items": [
+        { "id": 7021, "name": "মেকানিক্যাল কিবোর্ড", "cost": 4200, "bought": true },
+        { "id": 7022, "name": "টেবিল এলইডি রিডিং ল্যাম্প", "cost": 1650, "bought": true },
+        { "id": 7023, "name": "মাল্টিপ্লাগ সার্জ প্রোটেক্টর", "cost": 1350, "bought": false },
+        { "id": 7024, "name": "আর্গোনমিক চেয়ার কুশন", "cost": 2200, "bought": false }
+      ]
+    },
+    {
+      "id": 703,
+      "name": "পারিবারিক স্বাস্থ্য ও ওষুধ বাজেট",
+      "limit": 4000,
+      "loggedToExpense": false,
+      "items": [
+        { "id": 7031, "name": "বাবার প্রেসার ও ডায়াবেটিস ওষুধ", "cost": 1450, "bought": true },
+        { "id": 7032, "name": "মায়ের ক্যালসিয়াম ও ভিটামিন ডি", "cost": 880, "bought": true },
+        { "id": 7033, "name": "ফার্স্ট এইড বক্স রিফিল", "cost": 650, "bought": false }
+      ]
+    }
+  ],
+  "todos": [
+    {
+      "id": 601,
+      "title": "ডেসকো প্রিপেইড মিটার রিচার্জ করা",
+      "note": "ব্যালেন্স ৩০০ টাকার নিচে নামার আগেই ২০০০ টাকা রিচার্জ করতে হবে।",
+      "scheduledAt": "2026-10-28T10:30",
+      "priority": "high",
+      "completed": false,
+      "notified": false
+    },
+    {
+      "id": 602,
+      "title": "মাহমুদুল ভাইকে প্রজেক্ট ইনভয়েস পাঠানো",
+      "note": "বাকি ১২,০০০ টাকার পিডিএফ স্টেটমেন্ট হোয়াটসঅ্যাপে পাঠাতে হবে।",
+      "scheduledAt": "2026-10-29T16:00",
+      "priority": "high",
+      "completed": false,
+      "notified": false
+    },
+    {
+      "id": 603,
+      "title": "ক্রেডিট কার্ড ও ডিপিএস কিস্তি জমা",
+      "note": "সিটি ব্যাংক অ্যাপ থেকে মাসের ১৫ তারিখের মধ্যে ট্রান্সফার।",
+      "scheduledAt": "2026-11-05T11:00",
+      "priority": "medium",
+      "completed": false,
+      "notified": false
+    },
+    {
+      "id": 604,
+      "title": "মাসিক হিসাবের JSON ব্যাকআপ সংরক্ষণ",
+      "note": "সেটিংস থেকে ব্যাকআপ ডাউনলোড করে গুগল ড্রাইভে রাখা।",
+      "scheduledAt": "2026-10-25T20:00",
+      "priority": "low",
+      "completed": true,
+      "notified": true
+    }
+  ],
+  "savingsGoals": [
+    {
+      "id": 501,
+      "name": "জরুরি নিরাপত্তা তহবিল (Emergency Fund)",
+      "targetAmount": 150000,
+      "savedAmount": 68500,
+      "deadline": "2027-06-30",
+      "entries": [
+        { "id": 5013, "amount": 13500, "type": "deposit", "note": "চলতি মাসের সঞ্চয় জমা", "time": "10 তারিখ · 09:00 PM" },
+        { "id": 5012, "amount": 25000, "type": "deposit", "note": "ফ্রিল্যান্স বোনাস থেকে জমা", "time": "গত মাস" },
+        { "id": 5011, "amount": 30000, "type": "deposit", "note": "প্রাথমিক তহবিল শুরু", "time": "২ মাস আগে" }
+      ]
+    },
+    {
+      "id": 502,
+      "name": "বাবা-মায়ের ওমরাহ তহবিল",
+      "targetAmount": 300000,
+      "savedAmount": 115000,
+      "deadline": "2027-12-15",
+      "entries": [
+        { "id": 5022, "amount": 25000, "type": "deposit", "note": "মাসিক নির্ধারিত কিস্তি", "time": "05 তারিখ · 11:30 AM" },
+        { "id": 5021, "amount": 90000, "type": "deposit", "note": "পূর্ববর্তী জমানো টাকা স্থানান্তর", "time": "গত মাস" }
+      ]
+    },
+    {
+      "id": 503,
+      "name": "নতুন ম্যাকবুক ওয়ার্কস্টেশন",
+      "targetAmount": 145000,
+      "savedAmount": 52000,
+      "deadline": "2027-03-31",
+      "entries": [
+        { "id": 5032, "amount": 17000, "type": "deposit", "note": "অ্যাপ প্রজেক্ট পেমেন্ট থেকে জমা", "time": "12 তারিখ · 10:15 PM" },
+        { "id": 5031, "amount": 35000, "type": "deposit", "note": "প্রথম ডিপোজিট", "time": "গত মাস" }
+      ]
+    }
+  ],
+  "recurringBills": [
+    { "id": 401, "name": "বাসা ভাড়া ও সার্ভিস চার্জ", "amount": 16500, "dueDay": 5, "category": "housing", "paidMonths": ["2026-08", "2026-09", "2026-10"] },
+    { "id": 402, "name": "ব্রডব্যান্ড ফাইবার ইন্টারনেট (Link3)", "amount": 1200, "dueDay": 10, "category": "utilities", "paidMonths": ["2026-08", "2026-09", "2026-10"] },
+    { "id": 403, "name": "ডেসকো বিদ্যুৎ বিল", "amount": 1850, "dueDay": 15, "category": "utilities", "paidMonths": ["2026-08", "2026-09"] },
+    { "id": 404, "name": "তিতাস গ্যাস বিল", "amount": 1080, "dueDay": 18, "category": "utilities", "paidMonths": ["2026-08", "2026-09"] },
+    { "id": 405, "name": "ব্যাংক ডিপিএস কিস্তি", "amount": 5000, "dueDay": 20, "category": "investment", "paidMonths": ["2026-08", "2026-09"] },
+    { "id": 406, "name": "জিম ও ফিটনেস মেম্বারশিপ", "amount": 1500, "dueDay": 25, "category": "health", "paidMonths": ["2026-09"] }
+  ],
+  "contactGroups": {
+    "পরিবার": ["ঘনিষ্ঠ", "আত্মীয়"],
+    "ব্যবসা": ["ক্লায়েন্ট", "পাইকারি বিক্রেতা", "সাপ্লায়ার"],
+    "অফিস": ["সহকর্মী", "ম্যানেজমেন্ট"],
+    "জরুরি": ["ডাক্তার ও হাসপাতাল", "সার্ভিস"]
+  },
+  "contacts": [
+    {
+      "id": "c_101",
+      "name": "ডা. ফারহানা রহমান",
+      "phone": "01711-908070",
+      "secondaryPhone": "02-9876543",
+      "email": "dr.farhana@squarehospital.com",
+      "organization": "স্কয়ার হাসপাতাল লিমিটেড",
+      "bloodGroup": "O+",
+      "address": "পান্থপথ, ঢাকা ১২১৫",
+      "notes": "পারিবারিক মেডিসিন বিশেষজ্ঞ (শনি-বুধ বিকাল ৫টা-৮টা)",
+      "group": "জরুরি",
+      "subGroup": "ডাক্তার ও হাসপাতাল",
+      "createdAt": 1791376680000
+    },
+    {
+      "id": "c_102",
+      "name": "মাহমুদুল হাসান",
+      "phone": "01912-889900",
+      "secondaryPhone": "01811-220011",
+      "email": "mahmudul@nexustech.com.bd",
+      "organization": "নেক্সাস টেক সলিউশনস",
+      "bloodGroup": "A+",
+      "address": "রোড ১১, ব্লক ই, বনানী, ঢাকা",
+      "notes": "ই-কমার্স ও ইনভেন্টরি প্রজেক্টের মূল ক্লায়েন্ট",
+      "group": "ব্যবসা",
+      "subGroup": "ক্লায়েন্ট",
+      "createdAt": 1791549480000
+    },
+    {
+      "id": "c_103",
+      "name": "তানভীর আহমেদ",
+      "phone": "01711-223344",
+      "email": "tanvir.ahmed@gmail.com",
+      "organization": "গ্রামীণফোন আইটি",
+      "bloodGroup": "B+",
+      "address": "মিরপুর ১০, সেনপাড়া পর্বতা, ঢাকা",
+      "notes": "কলেজ বন্ধু ও পাশের ব্লকের প্রতিবেশী",
+      "group": "পরিবার",
+      "subGroup": "ঘনিষ্ঠ",
+      "createdAt": 1791808680000
+    },
+    {
+      "id": "c_104",
+      "name": "রাশেদ করিম",
+      "phone": "01675-443322",
+      "email": "rashed.karim@outlook.com",
+      "organization": "উত্তরা মটরস",
+      "bloodGroup": "AB+",
+      "address": "সেক্টর ৭, রোড ২৭, উত্তরা, ঢাকা",
+      "notes": "খালাতো ভাই",
+      "group": "পরিবার",
+      "subGroup": "আত্মীয়",
+      "createdAt": 1792067880000
+    },
+    {
+      "id": "c_105",
+      "name": "শফিকুল ইসলাম (টিম লিড)",
+      "phone": "01713-456789",
+      "email": "shafiq.lead@softcraft.io",
+      "organization": "সফটক্রাফট বাংলাদেশ",
+      "bloodGroup": "O-",
+      "address": "গুলশান ১, ঢাকা ১২১২",
+      "notes": "প্রোডাক্ট ও ইঞ্জিনিয়ারিং ম্যানেজার",
+      "group": "অফিস",
+      "subGroup": "ম্যানেজমেন্ট",
+      "createdAt": 1792240680000
+    },
+    {
+      "id": "c_106",
+      "name": "নুসরাত জাহান",
+      "phone": "01844-776655",
+      "email": "nusrat.ux@softcraft.io",
+      "organization": "সফটক্রাফট বাংলাদেশ",
+      "bloodGroup": "A+",
+      "address": "ধানমন্ডি ২৭, ঢাকা",
+      "notes": "সিনিয়র UI/UX ডিজাইনার সহকর্মী",
+      "group": "অফিস",
+      "subGroup": "সহকর্মী",
+      "createdAt": 1792413480000
+    },
+    {
+      "id": "c_107",
+      "name": "আলহাজ্ব আব্দুল করিম (বিসমিল্লাহ স্টোর)",
+      "phone": "01819-556677",
+      "organization": "বিসমিল্লাহ জেনারেল স্টোর",
+      "bloodGroup": "B+",
+      "address": "ব্লক সি, মিরপুর, ঢাকা",
+      "notes": "বাসার নিচতলার মুদি ও নিত্যপণ্যের দোকান",
+      "group": "ব্যবসা",
+      "subGroup": "সাপ্লায়ার",
+      "createdAt": 1792672680000
+    },
+    {
+      "id": "c_108",
+      "name": "ইঞ্জি. কামরুল হাসান (ইলেকট্রিশিয়ান ও এসি সার্ভিস)",
+      "phone": "01955-332211",
+      "organization": "কুলিং কেয়ার সার্ভিস",
+      "bloodGroup": "O+",
+      "address": "কাজীপাড়া, মিরপুর, ঢাকা",
+      "notes": "এসি, ফ্রিজ ও আইপিএস জরুরি মেরামত সার্ভিস",
+      "group": "জরুরি",
+      "subGroup": "সার্ভিস",
+      "createdAt": 1792845480000
+    }
+  ]
+}

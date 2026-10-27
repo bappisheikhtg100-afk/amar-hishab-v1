@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bgMint" x1="80" y1="60" x2="944" y2="964" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="48%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#064E3B"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(260 180) rotate(45) scale(620)">
+      <stop offset="0%" stop-color="#A7F3D0" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cardBack" x1="250" y1="220" x2="760" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D1FAE5"/>
+      <stop offset="100%" stop-color="#6EE7B7"/>
+    </linearGradient>
+    <linearGradient id="walletBody" x1="196" y1="310" x2="828" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#ECFDF5"/>
+    </linearGradient>
+    <linearGradient id="claspGrad" x1="636" y1="484" x2="852" y2="616" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D3B32"/>
+      <stop offset="100%" stop-color="#062822"/>
+    </linearGradient>
+    <filter id="softDrop" x="120" y="170" width="800" height="700" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#022C22" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+
+  <!-- Background (Full bleed for maskable, rounded squircle for standard) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgMint)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#topGlow)"/>
+
+  <g transform="translate(0,0)">
+    <!-- Mint Card Peeking Out of Wallet -->
+    <g transform="rotate(-7 512 360)">
+      <rect x="252" y="232" width="484" height="260" rx="46" fill="url(#cardBack)" opacity="0.95"/>
+      <rect x="304" y="280" width="112" height="18" rx="9" fill="#065F46" opacity="0.28"/>
+    </g>
+
+    <!-- Main Modern Minimalist Wallet Body -->
+    <g filter="url(#softDrop)">
+      <rect x="196" y="324" width="632" height="456" rx="88" fill="url(#walletBody)"/>
+    </g>
+
+    <!-- Subtle Stitching / Inner Rim -->
+    <rect x="224" y="352" width="576" height="400" rx="66" stroke="#10B981" stroke-opacity="0.18" stroke-width="6"/>
+
+    <!-- Minimalist Taka (৳) Emblem on Wallet Left -->
+    <g transform="translate(304, 438)">
+      <path d="M52 24C80 24 98 42 98 70V178C98 206 118 226 146 226C174 226 194 206 194 178C194 152 176 134 150 134H128" stroke="#065F46" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M40 92H168" stroke="#10B981" stroke-width="30" stroke-linecap="round"/>
+    </g>
+
+    <!-- Right Magnetic Clasp Tab -->
+    <rect x="644" y="484" width="208" height="136" rx="68" fill="url(#claspGrad)"/>
+    <circle cx="712" cy="552" r="24" fill="#6EE7B7"/>
+  </g>
+</svg>
