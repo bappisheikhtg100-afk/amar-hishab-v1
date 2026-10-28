@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - master
+      - develop
+    tags-ignore:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -29,41 +32,54 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android SDK & Accept Licenses
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+          mkdir -p "$SDK_ROOT/licenses"
+          printf "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n85435445a95c234340d05367a999a69d7b46701c\n" > "$SDK_ROOT/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910\n" > "$SDK_ROOT/licenses/android-sdk-preview-license"
+
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$SDKMANAGER" ]; then
+            echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-36" "build-tools;36.0.0" || true
+          fi
 
       - name: Install NPM Dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Sync 1024x1024 App Icon & White Splash Assets
         run: |
-          node -e '
-            const fs = require("fs");
-            const sharp = require("sharp");
-            (async () => {
-              if (fs.existsSync("public/icon.png")) {
-                fs.mkdirSync("assets", { recursive: true });
-                await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-only.png");
-                await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-foreground.png");
-                await sharp({
-                  create: { width: 1024, height: 1024, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
-                }).png().toFile("assets/icon-background.png");
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import sharp from "sharp";
+            if (fs.existsSync("public/icon.png")) {
+              fs.mkdirSync("assets", { recursive: true });
+              await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-only.png");
+              await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-foreground.png");
+              await sharp({
+                create: { width: 1024, height: 1024, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
+              }).png().toFile("assets/icon-background.png");
 
-                const iconBuf = await sharp("public/icon.png").resize(480, 480).png().toBuffer();
-                await sharp({
-                  create: { width: 2732, height: 2732, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
-                })
-                  .composite([{ input: iconBuf, gravity: "center" }])
-                  .png()
-                  .toFile("assets/splash.png");
-                fs.copyFileSync("assets/splash.png", "assets/splash-dark.png");
+              const iconBuf = await sharp("public/icon.png").resize(480, 480).png().toBuffer();
+              await sharp({
+                create: { width: 2732, height: 2732, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
+              })
+                .composite([{ input: iconBuf, gravity: "center" }])
+                .png()
+                .toFile("assets/splash.png");
+              fs.copyFileSync("assets/splash.png", "assets/splash-dark.png");
 
-                await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-512x512.png");
-                await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-maskable-512x512.png");
-                await sharp("public/icon.png").resize(192, 192).png().toFile("public/pwa-192x192.png");
-                await sharp("public/icon.png").resize(180, 180).png().toFile("public/apple-touch-icon.png");
-              }
-            })();
+              await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-512x512.png");
+              await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-maskable-512x512.png");
+              await sharp("public/icon.png").resize(192, 192).png().toFile("public/pwa-192x192.png");
+              await sharp("public/icon.png").resize(180, 180).png().toFile("public/apple-touch-icon.png");
+            }
           '
 
       - name: Build Production Offline Web Bundle
@@ -76,6 +92,7 @@ jobs:
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+          printf "sdk.dir=%s\n" "$ANDROID_HOME" > android/local.properties
 
       - name: Generate Native Android Launcher Icons & White Splash Screen
         run: |
@@ -123,6 +140,8 @@ jobs:
 
       - name: Build & Sign Release APK
         run: |
+          rm -f amar-hisab-release.keystore amar-hisab-aligned.apk amar-hisab.apk
+
           keytool -genkeypair -v \
             -keystore amar-hisab-release.keystore \
             -alias amarhisab \
@@ -135,11 +154,11 @@ jobs:
 
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --no-daemon
           cd ..
 
           UNSIGNED_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
 
           "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" amar-hisab-aligned.apk
           "$BUILD_TOOLS_DIR/apksigner" sign \
@@ -159,6 +178,13 @@ jobs:
           path: amar-hisab.apk
           if-no-files-found: error
 
+      - name: Upload Demo Data JSON Artifact (For Testing Only)
+        if: hashFiles('demo-data/amar-hisab-demo-data.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: amar-hisab-demo-data
+          path: demo-data/amar-hisab-demo-data.json
+
       - name: Publish GitHub Release with APK
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
@@ -166,4 +192,7 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Amar Hisab Offline APK v1.0.${{ github.run_number }}
-          files: amar-hisab.apk
+          files: |
+            amar-hisab.apk
+            demo-data/amar-hisab-demo-data.json
+
