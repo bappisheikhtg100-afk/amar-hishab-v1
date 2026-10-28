@@ -359,8 +359,11 @@ export async function generateContactsDirectoryPdf(
               (c) => `
             <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 10px;">
               ${
-                c.photoDataUrl
-                  ? `<img src="${c.photoDataUrl}" alt="" style="width: 42px; height: 42px; border-radius: 10px; object-fit: cover; flex-shrink: 0;" />`
+                c.photoDataUrl &&
+                /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$/i.test(
+                  c.photoDataUrl.trim()
+                )
+                  ? `<img src="${escapeHtml(c.photoDataUrl.trim())}" alt="" style="width: 42px; height: 42px; border-radius: 10px; object-fit: cover; flex-shrink: 0;" />`
                   : `<div style="width: 42px; height: 42px; border-radius: 10px; background: #0B2620; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0;">${escapeHtml(
                       c.name.trim().charAt(0) || 'ক'
                     )}</div>`

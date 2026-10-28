@@ -58,13 +58,39 @@ jobs:
           node --input-type=module -e '
             import fs from "node:fs";
             import sharp from "sharp";
-            if (fs.existsSync("public/icon.png")) {
+            if (fs.existsSync("public/icon.svg")) {
+              const svgText = fs.readFileSync("public/icon.svg", "utf8");
+              await sharp(Buffer.from(svgText)).resize(1024, 1024).png({ compressionLevel: 9 }).toFile("public/icon.png");
+
+              const bgOnlySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+                <defs>
+                  <linearGradient id="bgDarkGreen" x1="80" y1="60" x2="944" y2="964" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#05684B"/>
+                    <stop offset="50%" stop-color="#064E3B"/>
+                    <stop offset="100%" stop-color="#022C22"/>
+                  </linearGradient>
+                  <radialGradient id="topGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 170) rotate(45) scale(600)">
+                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#064E3B" stop-opacity="0"/>
+                  </radialGradient>
+                </defs>
+                <rect x="0" y="0" width="1024" height="1024" fill="url(#bgDarkGreen)"/>
+                <rect x="0" y="0" width="1024" height="1024" fill="url(#topGlow)"/>
+              </svg>`;
+
+              const fgOnlySvg = svgText
+                .replace(/<rect x="0" y="0" width="1024" height="1024" rx="228" fill="url\(#bgDarkGreen\)"\/>/, "")
+                .replace(/<rect x="0" y="0" width="1024" height="1024" rx="228" fill="url\(#topGlow\)"\/>/, "")
+                .replace(/<g transform="translate\(0,0\)">/, `<g transform="translate(512,512) scale(0.76) translate(-512,-512)">`);
+
+              const maskableSvg = svgText
+                .replaceAll(`rx="228"`, `rx="0"`)
+                .replace(/<g transform="translate\(0,0\)">/, `<g transform="translate(512,512) scale(0.82) translate(-512,-512)">`);
+
               fs.mkdirSync("assets", { recursive: true });
               await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-only.png");
-              await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-foreground.png");
-              await sharp({
-                create: { width: 1024, height: 1024, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
-              }).png().toFile("assets/icon-background.png");
+              await sharp(Buffer.from(bgOnlySvg)).resize(1024, 1024).png().toFile("assets/icon-background.png");
+              await sharp(Buffer.from(fgOnlySvg)).resize(1024, 1024).png().toFile("assets/icon-foreground.png");
 
               const iconBuf = await sharp("public/icon.png").resize(480, 480).png().toBuffer();
               await sharp({
@@ -76,9 +102,28 @@ jobs:
               fs.copyFileSync("assets/splash.png", "assets/splash-dark.png");
 
               await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-512x512.png");
-              await sharp("public/icon.png").resize(512, 512).png().toFile("public/pwa-maskable-512x512.png");
+              await sharp(Buffer.from(maskableSvg)).resize(512, 512).png().toFile("public/pwa-maskable-512x512.png");
               await sharp("public/icon.png").resize(192, 192).png().toFile("public/pwa-192x192.png");
-              await sharp("public/icon.png").resize(180, 180).png().toFile("public/apple-touch-icon.png");
+              await sharp(Buffer.from(maskableSvg)).resize(180, 180).png().toFile("public/apple-touch-icon.png");
+            } else if (fs.existsSync("public/icon.png")) {
+              fs.mkdirSync("assets", { recursive: true });
+              await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-only.png");
+              if (!fs.existsSync("assets/icon-foreground.png")) {
+                await sharp("public/icon.png").resize(1024, 1024).png().toFile("assets/icon-foreground.png");
+              }
+              if (!fs.existsSync("assets/icon-background.png")) {
+                await sharp({
+                  create: { width: 1024, height: 1024, channels: 4, background: { r: 6, g: 78, b: 59, alpha: 1 } }
+                }).png().toFile("assets/icon-background.png");
+              }
+              const iconBuf = await sharp("public/icon.png").resize(480, 480).png().toBuffer();
+              await sharp({
+                create: { width: 2732, height: 2732, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } }
+              })
+                .composite([{ input: iconBuf, gravity: "center" }])
+                .png()
+                .toFile("assets/splash.png");
+              fs.copyFileSync("assets/splash.png", "assets/splash-dark.png");
             }
           '
 
@@ -97,8 +142,8 @@ jobs:
       - name: Generate Native Android Launcher Icons & White Splash Screen
         run: |
           npx capacitor-assets generate --android \
-            --iconBackgroundColor '#FFFFFF' \
-            --iconBackgroundColorDark '#FFFFFF' \
+            --iconBackgroundColor '#064E3B' \
+            --iconBackgroundColorDark '#064E3B' \
             --splashBackgroundColor '#FFFFFF' \
             --splashBackgroundColorDark '#FFFFFF'
 
@@ -110,6 +155,7 @@ jobs:
           text = manifest_path.read_text(encoding="utf-8")
 
           required_permissions = [
+              '<uses-permission android:name="android.permission.CAMERA" />',
               '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
               '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />',
               '<uses-permission android:name="android.permission.USE_EXACT_ALARM" />',
@@ -127,6 +173,9 @@ jobs:
               perm_name = perm.split('android:name="')[1].split('"')[0]
               if perm_name not in text:
                   missing.append("    " + perm)
+
+          if 'android.hardware.camera' not in text:
+              missing.append('    <uses-feature android:name="android.hardware.camera" android:required="false" />')
 
           if missing:
               block = "\n".join(missing) + "\n"

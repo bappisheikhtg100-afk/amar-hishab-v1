@@ -1,9 +1,23 @@
 /**
- * Offline Cryptography Helper (Web Crypto API SHA-256 & AES-GCM with pure-TS fallback
- * for non-HTTPS file:// Android WebView contexts).
+ * Offline Cryptography & Security Helper
+ * - Web Crypto API PBKDF2-SHA256 & AES-256-GCM with deterministic fallback for file:// WebViews
+ * - Constant-time hash comparison
+ * - Persistent brute-force PIN rate limiting
+ * - External file-picker guard to prevent false background auto-locks on Android
  */
 
 const SALT_NAMESPACE = 'amar_hisab_v3_sec::';
+const LOCKOUT_PREFIX = 'amar_hisab_lockout_v1_';
+
+let lastExternalPickerTimestamp = 0;
+
+export function markExternalPickerOpen(): void {
+  lastExternalPickerTimestamp = Date.now();
+}
+
+export function isExternalPickerRecentlyActive(windowMs = 45000): boolean {
+  return Date.now() - lastExternalPickerTimestamp < windowMs;
+}
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -18,6 +32,15 @@ export function hexToBytes(hex: string): Uint8Array {
     out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return out;
+}
+
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -40,13 +63,13 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 // Pure-TS deterministic 256-bit hash fallback when crypto.subtle is unavailable (e.g. file:// WebView)
-function fallbackHash256(input: string): Uint8Array {
+function fallbackHash256(input: string, rounds = 64): Uint8Array {
   const enc = new TextEncoder().encode(input);
   const state = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
     0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]);
-  for (let round = 0; round < 64; round++) {
+  for (let round = 0; round < rounds; round++) {
     for (let i = 0; i < enc.length; i++) {
       const idx = (i + round) & 7;
       let v = state[idx] ^ (enc[i] + round * 0x9e3779b9);
@@ -58,6 +81,7 @@ function fallbackHash256(input: string): Uint8Array {
   return new Uint8Array(state.buffer);
 }
 
+// Legacy v1 hash (kept for seamless backward-compatible migration)
 export async function hashSecret(raw: string): Promise<string> {
   const normalized = SALT_NAMESPACE + raw.trim().toLowerCase();
   if (typeof crypto !== 'undefined' && crypto.subtle) {
@@ -68,6 +92,36 @@ export async function hashSecret(raw: string): Promise<string> {
     return bytesToHex(new Uint8Array(buf));
   }
   return bytesToHex(fallbackHash256(normalized));
+}
+
+// Hardened v2 Salted PBKDF2-SHA256 (60,000 iterations)
+export async function hashSecretPBKDF2(
+  raw: string,
+  saltHex: string
+): Promise<string> {
+  const normalized = SALT_NAMESPACE + raw.trim().toLowerCase();
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const baseKey = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(normalized),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    const saltBytes = hexToBytes(saltHex);
+    const bits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: saltBytes.buffer as ArrayBuffer,
+        iterations: 60000,
+        hash: 'SHA-256',
+      },
+      baseKey,
+      256
+    );
+    return bytesToHex(new Uint8Array(bits));
+  }
+  return bytesToHex(fallbackHash256(`${saltHex}::${normalized}`, 2048));
 }
 
 export function generateRandomBytes(length = 12): Uint8Array {
@@ -86,7 +140,10 @@ export function generateSaltHex(): string {
   return bytesToHex(generateRandomBytes(16));
 }
 
-async function deriveWebCryptoKey(pin: string, saltHex: string): Promise<CryptoKey | null> {
+async function deriveWebCryptoKey(
+  pin: string,
+  saltHex: string
+): Promise<CryptoKey | null> {
   if (typeof crypto === 'undefined' || !crypto.subtle) return null;
   const baseKey = await crypto.subtle.importKey(
     'raw',
@@ -116,10 +173,13 @@ function xorStreamTransform(
   saltHex: string,
   iv: Uint8Array
 ): ArrayBuffer {
-  const keySeed = fallbackHash256(`${pin}:${saltHex}:${bytesToHex(iv)}`);
+  const keySeed = fallbackHash256(`${pin}:${saltHex}:${bytesToHex(iv)}`, 256);
   const out = new Uint8Array(data.length);
   let s =
-    ((keySeed[0] << 24) | (keySeed[1] << 16) | (keySeed[2] << 8) | keySeed[3]) >>>
+    ((keySeed[0] << 24) |
+      (keySeed[1] << 16) |
+      (keySeed[2] << 8) |
+      keySeed[3]) >>>
     0;
   for (let i = 0; i < data.length; i++) {
     s ^= s << 13;
@@ -148,7 +208,12 @@ export async function encryptBytes(
   }
   return {
     iv,
-    cipherBuffer: xorStreamTransform(new Uint8Array(plainBuffer), pin, saltHex, iv),
+    cipherBuffer: xorStreamTransform(
+      new Uint8Array(plainBuffer),
+      pin,
+      saltHex,
+      iv
+    ),
   };
 }
 
@@ -167,4 +232,68 @@ export async function decryptBytes(
     );
   }
   return xorStreamTransform(new Uint8Array(cipherBuffer), pin, saltHex, iv);
+}
+
+// --- Persistent Brute-Force Lockout Protection ---
+interface LockoutState {
+  attempts: number;
+  lockedUntil: number;
+}
+
+function readLockout(scope: 'app' | 'vault'): LockoutState {
+  try {
+    const raw = localStorage.getItem(LOCKOUT_PREFIX + scope);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        attempts: Number(parsed.attempts) || 0,
+        lockedUntil: Number(parsed.lockedUntil) || 0,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return { attempts: 0, lockedUntil: 0 };
+}
+
+export function getPinLockoutRemainingSeconds(scope: 'app' | 'vault'): number {
+  const state = readLockout(scope);
+  const remMs = state.lockedUntil - Date.now();
+  return remMs > 0 ? Math.ceil(remMs / 1000) : 0;
+}
+
+export function recordFailedPinAttempt(scope: 'app' | 'vault'): {
+  attempts: number;
+  lockSeconds: number;
+} {
+  const state = readLockout(scope);
+  const nextAttempts = state.attempts + 1;
+  let lockSeconds = 0;
+
+  if (nextAttempts >= 10) {
+    lockSeconds = 60;
+  } else if (nextAttempts >= 5 && nextAttempts % 5 === 0) {
+    lockSeconds = 30;
+  }
+
+  const nextState: LockoutState = {
+    attempts: nextAttempts,
+    lockedUntil: lockSeconds > 0 ? Date.now() + lockSeconds * 1000 : state.lockedUntil,
+  };
+
+  try {
+    localStorage.setItem(LOCKOUT_PREFIX + scope, JSON.stringify(nextState));
+  } catch {
+    // ignore
+  }
+
+  return { attempts: nextAttempts, lockSeconds };
+}
+
+export function clearPinLockout(scope: 'app' | 'vault'): void {
+  try {
+    localStorage.removeItem(LOCKOUT_PREFIX + scope);
+  } catch {
+    // ignore
+  }
 }

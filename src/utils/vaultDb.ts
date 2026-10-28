@@ -10,10 +10,13 @@ import {
   encryptBytes,
   generateSaltHex,
   hashSecret,
+  hashSecretPBKDF2,
+  timingSafeEqual,
 } from './crypto';
 import { saveBlobOffline } from './fileSaver';
 
 export interface WrappedVaultConfig {
+  version?: number;
   pinHash: string;
   saltHex: string;
   recoveryQuestion: string;
@@ -47,7 +50,11 @@ export function getVaultConfig(): WrappedVaultConfig | null {
   try {
     const raw = localStorage.getItem(VAULT_CONFIG_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as WrappedVaultConfig;
+    const parsed = JSON.parse(raw) as WrappedVaultConfig;
+    if (!parsed || typeof parsed.pinHash !== 'string' || typeof parsed.saltHex !== 'string') {
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -60,7 +67,7 @@ export async function initializeNewVault(
 ): Promise<string> {
   const saltHex = generateSaltHex();
   const masterSecret = generateSaltHex() + generateSaltHex(); // 64-hex random 256-bit key
-  const pinHash = await hashSecret('vault_pin::' + pin);
+  const pinHash = await hashSecretPBKDF2('vault_pin::' + pin, saltHex);
 
   const masterBytes = new TextEncoder().encode(masterSecret).buffer;
   const pinWrap = await encryptBytes(masterBytes, pin, saltHex);
@@ -71,13 +78,14 @@ export async function initializeNewVault(
 
   if (recoveryAnswer.trim()) {
     const normAns = recoveryAnswer.trim().toLowerCase();
-    recoveryAnswerHash = await hashSecret('vault_rec::' + normAns);
+    recoveryAnswerHash = await hashSecretPBKDF2('vault_rec::' + normAns, saltHex);
     const recWrap = await encryptBytes(masterBytes, normAns, saltHex);
     wrappedMasterByRecB64 = arrayBufferToBase64(recWrap.cipherBuffer);
     wrappedMasterIvRecB64 = arrayBufferToBase64(recWrap.iv.buffer as ArrayBuffer);
   }
 
   const cfg: WrappedVaultConfig = {
+    version: 2,
     pinHash,
     saltHex,
     recoveryQuestion: recoveryQuestion.trim(),
@@ -95,16 +103,73 @@ export async function initializeNewVault(
 export async function unlockVaultWithPin(pin: string): Promise<string | null> {
   const cfg = getVaultConfig();
   if (!cfg) return null;
-  const candidate = await hashSecret('vault_pin::' + pin);
-  if (candidate !== cfg.pinHash) return null;
+
+  let matched = false;
+  if (cfg.version === 2) {
+    const candidate = await hashSecretPBKDF2('vault_pin::' + pin, cfg.saltHex);
+    matched = timingSafeEqual(candidate, cfg.pinHash);
+  } else {
+    // Seamless support for existing v1 Vault PINs
+    const candidateV1 = await hashSecret('vault_pin::' + pin);
+    matched = timingSafeEqual(candidateV1, cfg.pinHash);
+  }
+
+  if (!matched) return null;
 
   try {
     const cipher = base64ToArrayBuffer(cfg.wrappedMasterByPinB64);
     const iv = new Uint8Array(base64ToArrayBuffer(cfg.wrappedMasterIvPinB64));
     const dec = await decryptBytes(cipher, iv, pin, cfg.saltHex);
-    return new TextDecoder().decode(dec);
+    const masterSecret = new TextDecoder().decode(dec);
+
+    // Upgrade v1 pinHash to v2 PBKDF2 transparently once verified
+    if (cfg.version !== 2 && !cfg.recoveryAnswerHash) {
+      const upgradedHash = await hashSecretPBKDF2('vault_pin::' + pin, cfg.saltHex);
+      const upgraded: WrappedVaultConfig = {
+        ...cfg,
+        version: 2,
+        pinHash: upgradedHash,
+      };
+      localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(upgraded));
+    }
+
+    return masterSecret;
   } catch {
     return null;
+  }
+}
+
+export async function changeVaultPin(
+  currentPin: string,
+  newPin: string
+): Promise<boolean> {
+  const cfg = getVaultConfig();
+  if (!cfg) return false;
+  const masterSecret = await unlockVaultWithPin(currentPin);
+  if (!masterSecret) return false;
+
+  try {
+    const newPinHash =
+      cfg.version === 2
+        ? await hashSecretPBKDF2('vault_pin::' + newPin, cfg.saltHex)
+        : await hashSecret('vault_pin::' + newPin);
+
+    const pinWrap = await encryptBytes(
+      new TextEncoder().encode(masterSecret).buffer,
+      newPin,
+      cfg.saltHex
+    );
+
+    const updated: WrappedVaultConfig = {
+      ...cfg,
+      pinHash: newPinHash,
+      wrappedMasterByPinB64: arrayBufferToBase64(pinWrap.cipherBuffer),
+      wrappedMasterIvPinB64: arrayBufferToBase64(pinWrap.iv.buffer as ArrayBuffer),
+    };
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(updated));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -113,12 +178,21 @@ export async function recoverVaultAndResetPin(
   newPin: string
 ): Promise<string | null> {
   const cfg = getVaultConfig();
-  if (!cfg || !cfg.recoveryAnswerHash || !cfg.wrappedMasterByRecB64 || !cfg.wrappedMasterIvRecB64) {
+  if (
+    !cfg ||
+    !cfg.recoveryAnswerHash ||
+    !cfg.wrappedMasterByRecB64 ||
+    !cfg.wrappedMasterIvRecB64
+  ) {
     return null;
   }
   const normAns = recoveryAnswer.trim().toLowerCase();
-  const candidate = await hashSecret('vault_rec::' + normAns);
-  if (candidate !== cfg.recoveryAnswerHash) return null;
+  const candidate =
+    cfg.version === 2
+      ? await hashSecretPBKDF2('vault_rec::' + normAns, cfg.saltHex)
+      : await hashSecret('vault_rec::' + normAns);
+
+  if (!timingSafeEqual(candidate, cfg.recoveryAnswerHash)) return null;
 
   try {
     const cipher = base64ToArrayBuffer(cfg.wrappedMasterByRecB64);
@@ -126,7 +200,11 @@ export async function recoverVaultAndResetPin(
     const dec = await decryptBytes(cipher, iv, normAns, cfg.saltHex);
     const masterSecret = new TextDecoder().decode(dec);
 
-    const newPinHash = await hashSecret('vault_pin::' + newPin);
+    const newPinHash =
+      cfg.version === 2
+        ? await hashSecretPBKDF2('vault_pin::' + newPin, cfg.saltHex)
+        : await hashSecret('vault_pin::' + newPin);
+
     const pinWrap = await encryptBytes(
       new TextEncoder().encode(masterSecret).buffer,
       newPin,
@@ -158,7 +236,8 @@ export interface DecryptedVaultItem {
 export async function addVaultFileItem(
   file: File,
   type: VaultItemType,
-  masterSecret: string
+  masterSecret: string,
+  source: 'camera' | 'device' = 'device'
 ): Promise<void> {
   const cfg = getVaultConfig();
   if (!cfg) throw new Error('Vault not initialized');
@@ -167,6 +246,8 @@ export async function addVaultFileItem(
   const metaObj: VaultDecryptedMeta = {
     title: file.name.replace(/\.[^/.]+$/, '') || file.name,
     fileName: file.name,
+    updatedAt: Date.now(),
+    source,
   };
   const metaBuffer = new TextEncoder().encode(JSON.stringify(metaObj)).buffer;
 
@@ -217,9 +298,32 @@ export async function saveVaultNoteItem(
   const cfg = getVaultConfig();
   if (!cfg) throw new Error('Vault not initialized');
 
+  let originalCreatedAt = Date.now();
+  if (existingId) {
+    try {
+      const dbCheck = await openVaultDB();
+      const prev: VaultStoredRecord | undefined = await new Promise((res) => {
+        const tx = dbCheck.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(existingId);
+        req.onsuccess = () => {
+          dbCheck.close();
+          res(req.result);
+        };
+        req.onerror = () => {
+          dbCheck.close();
+          res(undefined);
+        };
+      });
+      if (prev?.createdAt) originalCreatedAt = prev.createdAt;
+    } catch {
+      // ignore
+    }
+  }
+
   const metaObj: VaultDecryptedMeta = {
     title: title.trim() || 'গোপন নোট',
     noteBody,
+    updatedAt: Date.now(),
   };
   const encoded = new TextEncoder().encode(JSON.stringify(metaObj));
   const { iv, cipherBuffer: encryptedMeta } = await encryptBytes(
@@ -233,7 +337,7 @@ export async function saveVaultNoteItem(
     type: 'note',
     mimeType: 'text/plain',
     sizeBytes: encoded.byteLength,
-    createdAt: Date.now(),
+    createdAt: originalCreatedAt,
     iv,
     encryptedMeta,
   };
@@ -251,6 +355,79 @@ export async function saveVaultNoteItem(
       reject(tx.error);
     };
   });
+}
+
+export async function renameVaultItem(
+  id: string,
+  newTitle: string,
+  masterSecret: string
+): Promise<boolean> {
+  const cfg = getVaultConfig();
+  if (!cfg || !newTitle.trim()) return false;
+
+  const db = await openVaultDB();
+  const record: VaultStoredRecord | undefined = await new Promise((res, rej) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+
+  if (!record) {
+    db.close();
+    return false;
+  }
+
+  try {
+    const ivArr =
+      record.iv instanceof Uint8Array
+        ? record.iv
+        : new Uint8Array(Object.values(record.iv));
+    const decBuf = await decryptBytes(
+      record.encryptedMeta,
+      ivArr,
+      masterSecret,
+      cfg.saltHex
+    );
+    const meta = JSON.parse(
+      new TextDecoder().decode(decBuf)
+    ) as VaultDecryptedMeta;
+
+    const updatedMeta: VaultDecryptedMeta = {
+      ...meta,
+      title: newTitle.trim().slice(0, 140),
+      updatedAt: Date.now(),
+    };
+    const encoded = new TextEncoder().encode(JSON.stringify(updatedMeta));
+    const { iv: nextIv, cipherBuffer: nextEncryptedMeta } = await encryptBytes(
+      encoded.buffer,
+      masterSecret,
+      cfg.saltHex
+    );
+
+    const updatedRecord: VaultStoredRecord = {
+      ...record,
+      iv: nextIv,
+      encryptedMeta: nextEncryptedMeta,
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(updatedRecord);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
+    return true;
+  } catch {
+    db.close();
+    return false;
+  }
 }
 
 export async function listDecryptedVaultItems(
@@ -367,7 +544,7 @@ export async function exportEncryptedVaultBackup(): Promise<void> {
     };
     req.onerror = () => {
       db.close();
-      reject(tx.error);
+      reject(req.error);
     };
   });
 
@@ -404,34 +581,85 @@ export async function exportEncryptedVaultBackup(): Promise<void> {
   );
 }
 
-export async function importEncryptedVaultBackup(jsonText: string): Promise<boolean> {
+const VALID_VAULT_TYPES = new Set<VaultItemType>([
+  'image',
+  'video',
+  'document',
+  'note',
+]);
+
+export async function importEncryptedVaultBackup(
+  jsonText: string
+): Promise<boolean> {
   try {
     const parsed = JSON.parse(jsonText);
     if (
       !parsed ||
+      typeof parsed !== 'object' ||
       parsed.app !== 'AmarHisabEncryptedVault' ||
       !parsed.config ||
+      typeof parsed.config.pinHash !== 'string' ||
+      typeof parsed.config.saltHex !== 'string' ||
+      typeof parsed.config.wrappedMasterByPinB64 !== 'string' ||
+      typeof parsed.config.wrappedMasterIvPinB64 !== 'string' ||
       !Array.isArray(parsed.items)
     ) {
       return false;
     }
-    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(parsed.config));
+
+    const safeCfg: WrappedVaultConfig = {
+      version: parsed.config.version === 2 ? 2 : undefined,
+      pinHash: String(parsed.config.pinHash).slice(0, 128),
+      saltHex: String(parsed.config.saltHex).slice(0, 128),
+      recoveryQuestion: String(parsed.config.recoveryQuestion || '').slice(0, 200),
+      recoveryAnswerHash: String(parsed.config.recoveryAnswerHash || '').slice(
+        0,
+        128
+      ),
+      wrappedMasterByPinB64: String(parsed.config.wrappedMasterByPinB64),
+      wrappedMasterIvPinB64: String(parsed.config.wrappedMasterIvPinB64),
+      wrappedMasterByRecB64:
+        typeof parsed.config.wrappedMasterByRecB64 === 'string'
+          ? parsed.config.wrappedMasterByRecB64
+          : undefined,
+      wrappedMasterIvRecB64:
+        typeof parsed.config.wrappedMasterIvRecB64 === 'string'
+          ? parsed.config.wrappedMasterIvRecB64
+          : undefined,
+    };
+
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(safeCfg));
     const db = await openVaultDB();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       for (const item of parsed.items) {
+        if (
+          !item ||
+          typeof item.id !== 'string' ||
+          !VALID_VAULT_TYPES.has(item.type as VaultItemType) ||
+          typeof item.ivB64 !== 'string' ||
+          typeof item.metaB64 !== 'string'
+        ) {
+          continue;
+        }
         const rec: VaultStoredRecord = {
-          id: item.id,
-          type: item.type,
-          mimeType: item.mimeType,
-          sizeBytes: item.sizeBytes,
-          createdAt: item.createdAt,
+          id: item.id.slice(0, 80),
+          type: item.type as VaultItemType,
+          mimeType: String(item.mimeType || 'application/octet-stream').slice(
+            0,
+            100
+          ),
+          sizeBytes: Math.max(0, Number(item.sizeBytes) || 0),
+          createdAt: Number.isFinite(Number(item.createdAt))
+            ? Number(item.createdAt)
+            : Date.now(),
           iv: new Uint8Array(base64ToArrayBuffer(item.ivB64)),
           encryptedMeta: base64ToArrayBuffer(item.metaB64),
-          encryptedPayload: item.payloadB64
-            ? base64ToArrayBuffer(item.payloadB64)
-            : undefined,
+          encryptedPayload:
+            typeof item.payloadB64 === 'string'
+              ? base64ToArrayBuffer(item.payloadB64)
+              : undefined,
         };
         store.put(rec);
       }

@@ -37,6 +37,7 @@ import {
   TransactionType,
 } from './types/finance';
 import { APP_ICON_DATA_URI } from './utils/appIconData';
+import { isExternalPickerRecentlyActive } from './utils/crypto';
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: 'home', label: 'হোম', icon: Home },
@@ -51,6 +52,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [moreSubView, setMoreSubView] = useState<MoreSubView>('hub');
+  const [privacyCurtain, setPrivacyCurtain] = useState(false);
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [txInitialType, setTxInitialType] =
@@ -59,13 +61,39 @@ export default function App() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const isLocked = Boolean(store.securityConfig?.enabled && store.isAppLocked);
+
   const todoNotifier = useTodoNotifications(
     store.todos,
     store.markTodoNotified
   );
 
+  // Hide balances in Android Recent Apps task switcher when security is enabled
+  useEffect(() => {
+    if (!store.securityConfig?.enabled) {
+      setPrivacyCurtain(false);
+      return;
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (!isExternalPickerRecentlyActive()) {
+          setPrivacyCurtain(true);
+        }
+      } else {
+        setPrivacyCurtain(false);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [store.securityConfig?.enabled]);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    if (isLocked) {
+      void StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+      void StatusBar.setBackgroundColor({ color: '#071D18' }).catch(() => {});
+      return;
+    }
     const isDark = store.settings.theme === 'dark';
     void StatusBar.setStyle({
       style: isDark ? Style.Dark : Style.Light,
@@ -73,7 +101,7 @@ export default function App() {
     void StatusBar.setBackgroundColor({
       color: isDark ? '#090D16' : '#F6F7F9',
     }).catch(() => {});
-  }, [store.settings.theme]);
+  }, [store.settings.theme, isLocked]);
 
   const handleTabClick = (tab: AppTab) => {
     setActiveTab(tab);
@@ -99,19 +127,50 @@ export default function App() {
     setTxModalOpen(true);
   };
 
-  return (
-    <div className="min-h-screen bg-[#F6F7F9] dark:bg-[#090D16] text-slate-900 dark:text-slate-100 flex flex-col">
-      {/* Cold-launch Minimalist Dark Emerald Splash Screen */}
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
-
-      {/* Full-Screen App Lock PIN Gate */}
-      {!showSplash && store.securityConfig?.enabled && store.isAppLocked && (
+  // STRICT AUTH GATE: Zero protected DOM (no homepage, balances, transactions, or banners)
+  // is ever mounted or painted while App Lock is active. AppLockGate sits directly behind
+  // SplashScreen so splash fade-out reveals ONLY the PIN pad with zero flash.
+  if (isLocked && store.securityConfig) {
+    return (
+      <div className="min-h-screen bg-[#071D18] text-white flex flex-col">
+        {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
         <AppLockGate
           securityConfig={store.securityConfig}
           onVerifyPin={store.verifyAppPin}
           onVerifySecurityAnswers={store.verifySecurityAnswers}
           onResetPin={store.updateAppPinOnly}
         />
+        {store.toast && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[95] px-4 py-2 rounded-full shadow-lg text-xs font-medium whitespace-nowrap bg-white text-slate-900"
+          >
+            {store.toast.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F6F7F9] dark:bg-[#090D16] text-slate-900 dark:text-slate-100 flex flex-col">
+      {/* Cold-launch Minimalist Splash Screen */}
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+
+      {/* Recent-Apps Switcher Privacy Curtain */}
+      {privacyCurtain && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-[95] bg-[#071D18] flex flex-col items-center justify-center select-none"
+        >
+          <img
+            src={APP_ICON_DATA_URI}
+            alt=""
+            className="w-16 h-16 rounded-2xl mb-3"
+          />
+          <p className="text-sm font-bold text-white">আমার হিসাব</p>
+        </div>
       )}
 
       {/* Timely Scheduled Todo Alert Banner */}
@@ -144,7 +203,7 @@ export default function App() {
                   }
                   todoNotifier.dismissDueTodo();
                 }}
-                className="min-h-[34px] px-3 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold inline-flex items-center gap-1"
+                className="min-h-[36px] px-3 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold inline-flex items-center gap-1"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>সম্পন্ন</span>
@@ -152,7 +211,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={todoNotifier.dismissDueTodo}
-                className="min-h-[34px] px-3 rounded-xl bg-white/10 text-xs font-medium text-white/85"
+                className="min-h-[36px] px-3 rounded-xl bg-white/10 text-xs font-medium text-white/85"
               >
                 পরে দেখব
               </button>
@@ -162,7 +221,7 @@ export default function App() {
             type="button"
             onClick={todoNotifier.dismissDueTodo}
             aria-label="বন্ধ করুন"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/60 hover:text-white shrink-0"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/60 hover:text-white shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -209,7 +268,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => openAddTransaction('expense')}
-              className="min-h-[38px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>নতুন হিসাব</span>
@@ -239,7 +298,7 @@ export default function App() {
               type="button"
               onClick={store.lockAppNow}
               aria-label="অ্যাপ লক করুন"
-              className="w-10 h-10 flex items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 transition-colors"
             >
               <Lock className="w-4 h-4" />
             </button>
@@ -248,7 +307,7 @@ export default function App() {
             type="button"
             onClick={() => setSettingsOpen(true)}
             aria-label="সেটিংস"
-            className="w-10 h-10 flex items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 transition-colors"
           >
             <SlidersHorizontal className="w-4 h-4" />
           </button>
@@ -340,6 +399,7 @@ export default function App() {
             onDeleteRecurringBill={store.deleteRecurringBill}
             securityConfig={store.securityConfig}
             onSaveSecurity={store.saveAppSecurity}
+            onUpdateAutoLockSeconds={store.updateAutoLockSeconds}
             onDisableSecurity={store.disableAppSecurity}
             onLockNow={store.lockAppNow}
             onLogAmountToFinance={(amount, type) =>

@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { markExternalPickerOpen } from './crypto';
 
 interface AndroidBridgeInterface {
   saveFileBase64?: (
@@ -63,6 +64,7 @@ export async function saveBlobOffline(
     }
 
     try {
+      markExternalPickerOpen();
       await Share.share({
         title: fileName,
         url: savedUri,

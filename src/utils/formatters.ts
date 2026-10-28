@@ -126,12 +126,24 @@ export function formatCurrentTimestamp(): string {
   return `${day} ${monthName}`;
 }
 
+const LEGACY_CATEGORY_LABELS: Record<string, string> = {
+  utilities: 'ইউটিলিটি বিল',
+  food: 'খাবার ও বাজার',
+  medical: 'চিকিৎসা',
+  rent: 'বাসা ভাড়া',
+  entertainment: 'বিনোদন',
+};
+
 export function getCategoryLabel(categoryId?: string, type?: TransactionType): string {
   if (!categoryId) {
     return type === 'income' ? 'আয়' : 'খরচ';
   }
   const found = ALL_CATEGORIES.find((c) => c.id === categoryId);
-  return found ? found.label : categoryId;
+  if (found) return found.label;
+  if (LEGACY_CATEGORY_LABELS[categoryId]) {
+    return LEGACY_CATEGORY_LABELS[categoryId];
+  }
+  return categoryId;
 }
 
 export function inferCategoryFromNote(note: string, type: TransactionType): string {

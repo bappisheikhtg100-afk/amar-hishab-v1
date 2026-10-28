@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Lock, ShieldCheck, Unlock } from 'lucide-react';
+import { ArrowLeft, Clock, Lock, ShieldCheck, Unlock } from 'lucide-react';
 import { AppSecurityConfig } from '../types/finance';
 import { ConfirmDialog } from './ModalSheet';
 
@@ -11,7 +11,9 @@ interface AppSecuritySetupViewProps {
     answer1: string;
     question2: string;
     answer2: string;
+    autoLockSeconds?: number;
   }) => Promise<void>;
+  onUpdateAutoLockSeconds: (seconds: number) => void;
   onDisableSecurity: () => void;
   onLockNow: () => void;
   onBack: () => void;
@@ -29,9 +31,17 @@ const PRESET_QUESTIONS_2 = [
   'আপনার প্রিয় খাবারের নাম কী?',
 ];
 
+const AUTO_LOCK_OPTIONS: { value: number; label: string }[] = [
+  { value: 15, label: '১৫ সেকেন্ড ব্যাকগ্রাউন্ডে থাকলে' },
+  { value: 60, label: '১ মিনিট ব্যাকগ্রাউন্ডে থাকলে' },
+  { value: 300, label: '৫ মিনিট ব্যাকগ্রাউন্ডে থাকলে' },
+  { value: 0, label: 'শুধুমাত্র অ্যাপ নতুন করে চালু করলে' },
+];
+
 export function AppSecuritySetupView({
   securityConfig,
   onSaveSecurity,
+  onUpdateAutoLockSeconds,
   onDisableSecurity,
   onLockNow,
   onBack,
@@ -46,6 +56,9 @@ export function AppSecuritySetupView({
     securityConfig?.question2 || PRESET_QUESTIONS_2[0]
   );
   const [a2, setA2] = useState('');
+  const [autoLockSeconds, setAutoLockSeconds] = useState<number>(
+    securityConfig?.autoLockSeconds ?? 60
+  );
   const [error, setError] = useState('');
   const [confirmDisable, setConfirmDisable] = useState(false);
 
@@ -71,6 +84,7 @@ export function AppSecuritySetupView({
       answer1: a1,
       question2: q2,
       answer2: a2,
+      autoLockSeconds,
     });
     setPin('');
     setConfirmPin('');
@@ -79,13 +93,15 @@ export function AppSecuritySetupView({
     setError('');
   };
 
+  const activeAutoLock = securityConfig?.autoLockSeconds ?? 60;
+
   return (
     <div className="max-w-xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="min-h-[42px] -ml-2 px-2 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+          className="min-h-[44px] -ml-2 px-2 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>মোর মেনু</span>
@@ -95,7 +111,7 @@ export function AppSecuritySetupView({
           <button
             type="button"
             onClick={onLockNow}
-            className="min-h-[40px] px-3.5 rounded-2xl bg-slate-900 dark:bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+            className="min-h-[42px] px-4 rounded-2xl bg-slate-900 dark:bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1.5"
           >
             <Lock className="w-3.5 h-3.5" />
             <span>এখনই লক করুন</span>
@@ -104,11 +120,11 @@ export function AppSecuritySetupView({
       </div>
 
       {/* Status Card */}
-      <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 p-5 sm:p-6">
+      <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center ${
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
                 securityConfig?.enabled
                   ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
@@ -126,8 +142,8 @@ export function AppSecuritySetupView({
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
                 {securityConfig?.enabled
-                  ? 'সক্রিয় আছে — অ্যাপ ওপেন করলে পিন চাইবে'
-                  : 'নিষ্ক্রিয় আছে — নিচে পিন ও সিকিউরিটি প্রশ্ন সেট করুন'}
+                  ? 'PBKDF2 এনক্রিপ্টেড পিন সক্রিয় · অ্যাপ খুললে সাথে সাথে পিন চাইবে'
+                  : 'নিষ্ক্রিয় আছে · নিচে পিন ও সিকিউরিটি প্রশ্ন সেট করুন'}
               </p>
             </div>
           </div>
@@ -136,12 +152,32 @@ export function AppSecuritySetupView({
             <button
               type="button"
               onClick={() => setConfirmDisable(true)}
-              className="min-h-[38px] px-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold"
+              className="min-h-[40px] px-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold shrink-0"
             >
               বন্ধ করুন
             </button>
           )}
         </div>
+
+        {securityConfig?.enabled && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+              <span>অটো-লক সময়</span>
+            </label>
+            <select
+              value={activeAutoLock}
+              onChange={(e) => onUpdateAutoLockSeconds(Number(e.target.value))}
+              className="w-full min-h-[44px] px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold text-slate-800 dark:text-slate-200"
+            >
+              {AUTO_LOCK_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </section>
 
       {/* Setup / Update Form */}
@@ -190,6 +226,25 @@ export function AppSecuritySetupView({
               />
             </div>
           </div>
+
+          {!securityConfig?.enabled && (
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                অটো-লক সময়
+              </label>
+              <select
+                value={autoLockSeconds}
+                onChange={(e) => setAutoLockSeconds(Number(e.target.value))}
+                className="w-full min-h-[44px] px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-xs font-medium"
+              >
+                {AUTO_LOCK_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
             <p className="text-xs font-medium text-slate-400">

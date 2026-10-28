@@ -145,6 +145,9 @@ export interface ContactItem {
 export interface AppSecurityConfig {
   enabled: boolean;
   pinHash: string;
+  saltHex?: string;
+  version?: number;
+  autoLockSeconds?: number;
   question1: string;
   answer1Hash: string;
   question2: string;
@@ -157,6 +160,8 @@ export interface VaultDecryptedMeta {
   title: string;
   fileName?: string;
   noteBody?: string;
+  updatedAt?: number;
+  source?: 'camera' | 'device';
 }
 
 export interface VaultStoredRecord {

@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
-import { Delete, KeyRound, Lock } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Delete, KeyRound, Lock, ShieldAlert } from 'lucide-react';
 import { AppSecurityConfig } from '../types/finance';
+import { APP_ICON_DATA_URI } from '../utils/appIconData';
+import {
+  clearPinLockout,
+  getPinLockoutRemainingSeconds,
+  recordFailedPinAttempt,
+} from '../utils/crypto';
 
 interface AppLockGateProps {
   securityConfig: AppSecurityConfig;
@@ -17,6 +23,10 @@ export function AppLockGate({
 }: AppLockGateProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [lockoutSec, setLockoutSec] = useState<number>(() =>
+    getPinLockoutRemainingSeconds('app')
+  );
   const [mode, setMode] = useState<'pin' | 'recovery' | 'new-pin'>('pin');
 
   // Recovery form state
@@ -24,30 +34,76 @@ export function AppLockGate({
   const [ans2, setAns2] = useState('');
   const [newPin, setNewPin] = useState('');
 
-  const handleDigit = async (digit: string) => {
-    if (pin.length >= 4) return;
-    const next = pin + digit;
-    setPin(next);
-    setError('');
-
-    if (next.length === 4) {
-      const ok = await onVerifyPin(next);
-      if (!ok) {
-        setError('ভুল পিন নম্বর');
-        window.setTimeout(() => setPin(''), 250);
+  useEffect(() => {
+    if (lockoutSec <= 0) return;
+    const timer = window.setInterval(() => {
+      const rem = getPinLockoutRemainingSeconds('app');
+      setLockoutSec(rem);
+      if (rem <= 0) {
+        setError('');
       }
-    }
-  };
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [lockoutSec]);
 
-  const handleBackspace = () => {
+  const handleDigit = useCallback(
+    async (digit: string) => {
+      if (verifying || lockoutSec > 0 || pin.length >= 4) return;
+      const next = pin + digit;
+      setPin(next);
+      setError('');
+
+      if (next.length === 4) {
+        setVerifying(true);
+        try {
+          const ok = await onVerifyPin(next);
+          if (!ok) {
+            const { lockSeconds } = recordFailedPinAttempt('app');
+            if (lockSeconds > 0) {
+              setLockoutSec(lockSeconds);
+              setError(`একাধিক ভুল চেষ্টা। ${lockSeconds} সেকেন্ড অপেক্ষা করুন।`);
+            } else {
+              setError('ভুল পিন নম্বর');
+            }
+            window.setTimeout(() => setPin(''), 220);
+          } else {
+            clearPinLockout('app');
+          }
+        } finally {
+          setVerifying(false);
+        }
+      }
+    },
+    [lockoutSec, onVerifyPin, pin, verifying]
+  );
+
+  const handleBackspace = useCallback(() => {
+    if (verifying || lockoutSec > 0) return;
     setPin((p) => p.slice(0, -1));
     setError('');
-  };
+  }, [lockoutSec, verifying]);
+
+  useEffect(() => {
+    if (mode !== 'pin') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        void handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode, handleDigit, handleBackspace]);
 
   const handleVerifyRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await onVerifySecurityAnswers(ans1, ans2);
     if (ok) {
+      clearPinLockout('app');
+      setLockoutSec(0);
       setError('');
       setMode('new-pin');
     } else {
@@ -66,18 +122,27 @@ export function AppLockGate({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] bg-[#0B2620] text-white flex flex-col items-center justify-center px-6 select-none">
+    <div className="fixed inset-0 z-[90] bg-[#071D18] text-white flex flex-col items-center justify-center px-6 select-none">
       {mode === 'pin' && (
         <div className="w-full max-w-xs flex flex-col items-center">
-          <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center mb-4">
-            <Lock className="w-6 h-6 text-emerald-300" />
+          <div className="relative mb-4">
+            <img
+              src={APP_ICON_DATA_URI}
+              alt="আমার হিসাব"
+              className="w-16 h-16 rounded-2xl shadow-lg ring-1 ring-white/15"
+            />
+            <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
+              <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
+            </div>
           </div>
 
-          <h1 className="text-lg font-bold">অ্যাপ লক করা আছে</h1>
-          <p className="text-xs text-white/60 mt-1">৪ সংখ্যার পিন দিন</p>
+          <h1 className="text-lg font-bold tracking-tight">আমার হিসাব সুরক্ষিত</h1>
+          <p className="text-xs text-white/60 mt-1">
+            আনলক করতে ৪ সংখ্যার পিন দিন
+          </p>
 
           {/* 4 PIN Indicators */}
-          <div className="flex items-center gap-4 my-7">
+          <div className="flex items-center gap-4 my-6">
             {[0, 1, 2, 3].map((idx) => {
               const filled = idx < pin.length;
               return (
@@ -93,18 +158,26 @@ export function AppLockGate({
             })}
           </div>
 
-          {error && (
-            <p className="text-xs font-medium text-rose-300 mb-4">{error}</p>
-          )}
+          <div className="min-h-[28px] mb-3 flex items-center justify-center text-center">
+            {lockoutSec > 0 ? (
+              <p className="font-num text-xs font-medium text-amber-300 inline-flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                <span>নিরাপত্তা বিরতি: {lockoutSec} সেকেন্ড অপেক্ষা করুন</span>
+              </p>
+            ) : error ? (
+              <p className="text-xs font-medium text-rose-300">{error}</p>
+            ) : null}
+          </div>
 
           {/* Tactile Keypad */}
-          <div className="grid grid-cols-3 gap-3.5 w-full max-w-[260px]">
+          <div className="grid grid-cols-3 gap-3.5 w-full max-w-[264px]">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
               <button
                 key={d}
                 type="button"
+                disabled={lockoutSec > 0 || verifying}
                 onClick={() => void handleDigit(d)}
-                className="font-num h-16 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] active:scale-95 text-xl font-bold text-white transition-all"
+                className="font-num h-15 sm:h-16 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] active:scale-95 disabled:opacity-40 text-xl font-bold text-white transition-all"
               >
                 {d}
               </button>
@@ -112,16 +185,18 @@ export function AppLockGate({
             <div />
             <button
               type="button"
+              disabled={lockoutSec > 0 || verifying}
               onClick={() => void handleDigit('0')}
-              className="font-num h-16 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] active:scale-95 text-xl font-bold text-white transition-all"
+              className="font-num h-15 sm:h-16 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] active:scale-95 disabled:opacity-40 text-xl font-bold text-white transition-all"
             >
               0
             </button>
             <button
               type="button"
+              disabled={lockoutSec > 0 || verifying}
               onClick={handleBackspace}
               aria-label="মুছুন"
-              className="h-16 rounded-2xl bg-white/[0.04] hover:bg-white/[0.12] flex items-center justify-center text-white/80 transition-colors"
+              className="h-15 sm:h-16 rounded-2xl bg-white/[0.04] hover:bg-white/[0.12] disabled:opacity-40 flex items-center justify-center text-white/80 transition-colors"
             >
               <Delete className="w-5 h-5" />
             </button>
@@ -134,7 +209,7 @@ export function AppLockGate({
                 setError('');
                 setMode('recovery');
               }}
-              className="mt-7 min-h-[40px] px-4 text-xs font-medium text-emerald-300/85 hover:text-emerald-200 underline underline-offset-4"
+              className="mt-6 min-h-[44px] px-4 text-xs font-medium text-emerald-300/85 hover:text-emerald-200 underline underline-offset-4"
             >
               পিন ভুলে গেছেন?
             </button>

@@ -6,8 +6,8 @@ import {
   ChevronRight,
   FileDown,
   Lock,
-  PiggyBank,
   SlidersHorizontal,
+  Target,
 } from 'lucide-react';
 import {
   AppSecurityConfig,
@@ -85,7 +85,9 @@ interface MoreHubViewProps {
     answer1: string;
     question2: string;
     answer2: string;
+    autoLockSeconds?: number;
   }) => Promise<void>;
+  onUpdateAutoLockSeconds: (seconds: number) => void;
   onDisableSecurity: () => void;
   onLockNow: () => void;
   // Calculator -> Finance & Settings
@@ -174,6 +176,7 @@ export function MoreHubView(props: MoreHubViewProps) {
       <AppSecuritySetupView
         securityConfig={props.securityConfig}
         onSaveSecurity={props.onSaveSecurity}
+        onUpdateAutoLockSeconds={props.onUpdateAutoLockSeconds}
         onDisableSecurity={props.onDisableSecurity}
         onLockNow={props.onLockNow}
         onBack={() => onChangeSubView('hub')}
@@ -276,7 +279,7 @@ export function MoreHubView(props: MoreHubViewProps) {
           >
             <div className="flex items-center gap-3.5">
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <PiggyBank className="w-4 h-4" />
+                <Target className="w-4 h-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">

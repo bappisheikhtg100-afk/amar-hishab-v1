@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { ContactItem, NumeralSystem } from '../types/finance';
+import { markExternalPickerOpen } from '../utils/crypto';
 import {
   ContactGroupMap,
   compressAvatarFile,
@@ -363,7 +364,10 @@ export function ContactsView({
 
             <button
               type="button"
-              onClick={() => jsonImportRef.current?.click()}
+              onClick={() => {
+                markExternalPickerOpen();
+                jsonImportRef.current?.click();
+              }}
               className="min-h-[40px] px-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5 text-slate-500" />
@@ -584,7 +588,10 @@ export function ContactsView({
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => photoInputRef.current?.click()}
+              onClick={() => {
+                markExternalPickerOpen();
+                photoInputRef.current?.click();
+              }}
               className="relative w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0"
             >
               {photoDataUrl ? (
@@ -600,7 +607,10 @@ export function ContactsView({
             <div>
               <button
                 type="button"
-                onClick={() => photoInputRef.current?.click()}
+                onClick={() => {
+                  markExternalPickerOpen();
+                  photoInputRef.current?.click();
+                }}
                 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
               >
                 {photoDataUrl ? 'ছবি পরিবর্তন করুন' : 'ছবি যুক্ত করুন'}

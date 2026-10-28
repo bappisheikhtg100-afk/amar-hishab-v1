@@ -13,7 +13,14 @@ import {
   Transaction,
   TransactionType,
 } from '../types/finance';
-import { hashSecret } from '../utils/crypto';
+import {
+  clearPinLockout,
+  generateSaltHex,
+  hashSecret,
+  hashSecretPBKDF2,
+  isExternalPickerRecentlyActive,
+  timingSafeEqual,
+} from '../utils/crypto';
 import {
   clearAllContacts,
   importContactsJson,
@@ -255,12 +262,26 @@ export function useFinanceStore() {
       answer1: string;
       question2: string;
       answer2: string;
+      autoLockSeconds?: number;
     }) => {
-      const pinHash = await hashSecret('app_pin::' + params.pin);
-      const answer1Hash = await hashSecret('app_q1::' + params.answer1);
-      const answer2Hash = await hashSecret('app_q2::' + params.answer2);
+      const saltHex = generateSaltHex();
+      const pinHash = await hashSecretPBKDF2('app_pin::' + params.pin, saltHex);
+      const answer1Hash = await hashSecretPBKDF2(
+        'app_q1::' + params.answer1,
+        saltHex
+      );
+      const answer2Hash = await hashSecretPBKDF2(
+        'app_q2::' + params.answer2,
+        saltHex
+      );
       const cfg: AppSecurityConfig = {
         enabled: true,
+        version: 2,
+        saltHex,
+        autoLockSeconds:
+          params.autoLockSeconds !== undefined
+            ? params.autoLockSeconds
+            : securityConfig?.autoLockSeconds ?? 60,
         pinHash,
         question1: params.question1.trim(),
         answer1Hash,
@@ -268,22 +289,44 @@ export function useFinanceStore() {
         answer2Hash,
       };
       localStorage.setItem(SECURITY_KEY, JSON.stringify(cfg));
+      clearPinLockout('app');
       setSecurityConfig(cfg);
       showToast('অ্যাপ লক পিন সক্রিয় করা হয়েছে', 'success');
     },
-    [showToast]
+    [securityConfig?.autoLockSeconds, showToast]
+  );
+
+  const updateAutoLockSeconds = useCallback(
+    (seconds: number) => {
+      if (!securityConfig) return;
+      const updated: AppSecurityConfig = {
+        ...securityConfig,
+        autoLockSeconds: seconds,
+      };
+      localStorage.setItem(SECURITY_KEY, JSON.stringify(updated));
+      setSecurityConfig(updated);
+      showToast('অটো-লক সময় আপডেট হয়েছে', 'success');
+    },
+    [securityConfig, showToast]
   );
 
   const updateAppPinOnly = useCallback(
     async (newPin: string) => {
       if (!securityConfig) return;
-      const pinHash = await hashSecret('app_pin::' + newPin);
+      const pinHash =
+        securityConfig.version === 2 && securityConfig.saltHex
+          ? await hashSecretPBKDF2(
+              'app_pin::' + newPin,
+              securityConfig.saltHex
+            )
+          : await hashSecret('app_pin::' + newPin);
       const updated: AppSecurityConfig = {
         ...securityConfig,
         enabled: true,
         pinHash,
       };
       localStorage.setItem(SECURITY_KEY, JSON.stringify(updated));
+      clearPinLockout('app');
       setSecurityConfig(updated);
       setIsAppLocked(false);
       showToast('নতুন পিন সেট করা হয়েছে', 'success');
@@ -293,6 +336,7 @@ export function useFinanceStore() {
 
   const disableAppSecurity = useCallback(() => {
     localStorage.removeItem(SECURITY_KEY);
+    clearPinLockout('app');
     setSecurityConfig(null);
     setIsAppLocked(false);
     showToast('অ্যাপ লক বন্ধ করা হয়েছে', 'neutral');
@@ -301,8 +345,20 @@ export function useFinanceStore() {
   const verifyAppPin = useCallback(
     async (candidatePin: string): Promise<boolean> => {
       if (!securityConfig) return true;
-      const h = await hashSecret('app_pin::' + candidatePin);
-      if (h === securityConfig.pinHash) {
+      let matched = false;
+      if (securityConfig.version === 2 && securityConfig.saltHex) {
+        const h = await hashSecretPBKDF2(
+          'app_pin::' + candidatePin,
+          securityConfig.saltHex
+        );
+        matched = timingSafeEqual(h, securityConfig.pinHash);
+      } else {
+        const hLegacy = await hashSecret('app_pin::' + candidatePin);
+        matched = timingSafeEqual(hLegacy, securityConfig.pinHash);
+      }
+
+      if (matched) {
+        clearPinLockout('app');
         setIsAppLocked(false);
         return true;
       }
@@ -314,9 +370,26 @@ export function useFinanceStore() {
   const verifySecurityAnswers = useCallback(
     async (a1: string, a2: string): Promise<boolean> => {
       if (!securityConfig) return false;
+      if (securityConfig.version === 2 && securityConfig.saltHex) {
+        const h1 = await hashSecretPBKDF2(
+          'app_q1::' + a1,
+          securityConfig.saltHex
+        );
+        const h2 = await hashSecretPBKDF2(
+          'app_q2::' + a2,
+          securityConfig.saltHex
+        );
+        return (
+          timingSafeEqual(h1, securityConfig.answer1Hash) &&
+          timingSafeEqual(h2, securityConfig.answer2Hash)
+        );
+      }
       const h1 = await hashSecret('app_q1::' + a1);
       const h2 = await hashSecret('app_q2::' + a2);
-      return h1 === securityConfig.answer1Hash && h2 === securityConfig.answer2Hash;
+      return (
+        timingSafeEqual(h1, securityConfig.answer1Hash) &&
+        timingSafeEqual(h2, securityConfig.answer2Hash)
+      );
     },
     [securityConfig]
   );
@@ -326,6 +399,36 @@ export function useFinanceStore() {
       setIsAppLocked(true);
     }
   }, [securityConfig]);
+
+  // Background inactivity auto-lock (respects external file picker on Android)
+  useEffect(() => {
+    if (!securityConfig?.enabled) return;
+    const autoLockSec = securityConfig.autoLockSeconds ?? 60;
+    if (autoLockSec <= 0) return;
+
+    let hiddenSince: number | null = null;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (!isExternalPickerRecentlyActive()) {
+          hiddenSince = Date.now();
+        }
+      } else if (document.visibilityState === 'visible') {
+        if (
+          hiddenSince !== null &&
+          !isExternalPickerRecentlyActive() &&
+          Date.now() - hiddenSince >= autoLockSec * 1000
+        ) {
+          setIsAppLocked(true);
+        }
+        hiddenSince = null;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibility);
+  }, [securityConfig?.enabled, securityConfig?.autoLockSeconds]);
 
   // --- Clear / Seed ---
   const clearAllData = useCallback(
@@ -1074,35 +1177,215 @@ export function useFinanceStore() {
           parsed.transactionsByMonth &&
           typeof parsed.transactionsByMonth === 'object'
         ) {
-          const txMap = parsed.transactionsByMonth as Record<
+          const rawTxMap = parsed.transactionsByMonth as Record<
             string,
-            Transaction[]
+            unknown
           >;
-          Object.entries(txMap).forEach(([mKey, list]) => {
-            if (Array.isArray(list)) {
-              syncMonthLegacyKeys(mKey, list);
+          const cleanTxMap: Record<string, Transaction[]> = {};
+          Object.entries(rawTxMap).forEach(([mKey, list]) => {
+            if (!/^\d{4}-\d{2}$/.test(mKey) || !Array.isArray(list)) return;
+            const sanitizedList: Transaction[] = [];
+            for (const rawTx of list) {
+              if (!rawTx || typeof rawTx !== 'object') continue;
+              const t = rawTx as Partial<Transaction>;
+              const amt = Number(t.amount);
+              if (!Number.isFinite(amt) || amt < 0) continue;
+              const txType: TransactionType =
+                t.type === 'income' ? 'income' : 'expense';
+              const safeNote = String(t.note || '').trim().slice(0, 240);
+              sanitizedList.push({
+                id: Number.isFinite(Number(t.id))
+                  ? Number(t.id)
+                  : Date.now() + Math.floor(Math.random() * 10000),
+                amount: amt,
+                type: txType,
+                note: safeNote,
+                category: t.category
+                  ? String(t.category).trim().slice(0, 50)
+                  : inferCategoryFromNote(safeNote, txType),
+                time: String(t.time || formatCurrentTimestamp()).slice(0, 60),
+                timestamp: Number.isFinite(Number(t.timestamp))
+                  ? Number(t.timestamp)
+                  : Date.now(),
+                monthKey: mKey,
+              });
             }
+            cleanTxMap[mKey] = sanitizedList;
+            syncMonthLegacyKeys(mKey, sanitizedList);
           });
-          setTransactionsByMonth(txMap);
+          setTransactionsByMonth(cleanTxMap);
 
           const curMonth = getCurrentMonthKey();
-          const monthKeys = Object.keys(txMap).sort();
-          if (txMap[curMonth]) {
+          const monthKeys = Object.keys(cleanTxMap).sort();
+          if (cleanTxMap[curMonth]) {
             setSelectedMonth(curMonth);
           } else if (monthKeys.length > 0) {
             setSelectedMonth(monthKeys[monthKeys.length - 1]);
           }
         }
-        if (Array.isArray(parsed.debtProfiles))
-          saveDebtProfiles(parsed.debtProfiles);
-        if (Array.isArray(parsed.budgets)) saveBudgets(parsed.budgets);
-        if (Array.isArray(parsed.todos)) saveTodos(parsed.todos);
-        if (Array.isArray(parsed.savingsGoals))
-          saveSavings(parsed.savingsGoals);
-        if (Array.isArray(parsed.recurringBills))
-          saveBills(parsed.recurringBills);
-        if (parsed.settings) {
-          setSettings((prev) => ({ ...prev, ...parsed.settings }));
+
+        if (Array.isArray(parsed.debtProfiles)) {
+          const safeProfiles: DebtProfile[] = parsed.debtProfiles
+            .filter((p: unknown) => p && typeof p === 'object')
+            .map((p: DebtProfile) => ({
+              id: Number.isFinite(Number(p.id))
+                ? Number(p.id)
+                : Date.now() + Math.floor(Math.random() * 10000),
+              name: String(p.name || '').trim().slice(0, 120),
+              phone: String(p.phone || '').trim().slice(0, 40),
+              address: String(p.address || '').trim().slice(0, 200),
+              debt: Math.max(0, Number(p.debt) || 0),
+              credit: Math.max(0, Number(p.credit) || 0),
+              transactions: Array.isArray(p.transactions)
+                ? p.transactions
+                    .filter((tx) => tx && typeof tx === 'object')
+                    .map((tx) => ({
+                      id: Number.isFinite(Number(tx.id))
+                        ? Number(tx.id)
+                        : Date.now() + Math.floor(Math.random() * 10000),
+                      type: (tx.type === 'debt'
+                        ? 'debt'
+                        : 'credit') as DebtTransactionType,
+                      amount: Math.max(0, Number(tx.amount) || 0),
+                      note: String(tx.note || '').trim().slice(0, 200),
+                      time: String(tx.time || '').slice(0, 60),
+                      timestamp: Number.isFinite(Number(tx.timestamp))
+                        ? Number(tx.timestamp)
+                        : undefined,
+                    }))
+                : [],
+            }));
+          saveDebtProfiles(safeProfiles);
+        }
+
+        if (Array.isArray(parsed.budgets)) {
+          const safeBudgets: Budget[] = parsed.budgets
+            .filter((b: unknown) => b && typeof b === 'object')
+            .map((b: Budget) => ({
+              id: Number.isFinite(Number(b.id))
+                ? Number(b.id)
+                : Date.now() + Math.floor(Math.random() * 10000),
+              name: String(b.name || '').trim().slice(0, 120),
+              limit:
+                b.limit && Number(b.limit) > 0 ? Number(b.limit) : undefined,
+              loggedToExpense: Boolean(b.loggedToExpense),
+              items: Array.isArray(b.items)
+                ? b.items
+                    .filter((it) => it && typeof it === 'object')
+                    .map((it: BudgetItem) => ({
+                      id: Number.isFinite(Number(it.id))
+                        ? Number(it.id)
+                        : Date.now() + Math.floor(Math.random() * 10000),
+                      name: String(it.name || '').trim().slice(0, 120),
+                      cost: Math.max(0, Number(it.cost) || 0),
+                      bought: Boolean(it.bought),
+                    }))
+                : [],
+            }));
+          saveBudgets(safeBudgets);
+        }
+
+        if (Array.isArray(parsed.todos)) {
+          const safeTodos: ScheduledTodo[] = parsed.todos
+            .filter((t: unknown) => t && typeof t === 'object')
+            .map((t: ScheduledTodo) => ({
+              id: Number.isFinite(Number(t.id))
+                ? Number(t.id)
+                : Date.now() + Math.floor(Math.random() * 10000),
+              title: String(t.title || '').trim().slice(0, 160),
+              note: String(t.note || '').trim().slice(0, 400),
+              scheduledAt: String(t.scheduledAt || '').slice(0, 40),
+              priority: (['normal', 'high', 'urgent'].includes(t.priority)
+                ? t.priority
+                : 'normal') as TodoPriority,
+              completed: Boolean(t.completed),
+              notified: Boolean(t.notified),
+              createdAt: Number.isFinite(Number(t.createdAt))
+                ? Number(t.createdAt)
+                : Date.now(),
+            }));
+          saveTodos(safeTodos);
+        }
+
+        if (Array.isArray(parsed.savingsGoals)) {
+          const safeSavings: SavingsGoal[] = parsed.savingsGoals
+            .filter((g: unknown) => g && typeof g === 'object')
+            .map((g: SavingsGoal) => ({
+              id: Number.isFinite(Number(g.id))
+                ? Number(g.id)
+                : Date.now() + Math.floor(Math.random() * 10000),
+              name: String(g.name || '').trim().slice(0, 120),
+              targetAmount: Math.max(0, Number(g.targetAmount) || 0),
+              savedAmount: Math.max(0, Number(g.savedAmount) || 0),
+              deadline: g.deadline ? String(g.deadline).slice(0, 30) : undefined,
+              entries: Array.isArray(g.entries)
+                ? g.entries
+                    .filter((en) => en && typeof en === 'object')
+                    .map((en) => ({
+                      id: Number.isFinite(Number(en.id))
+                        ? Number(en.id)
+                        : Date.now() + Math.floor(Math.random() * 10000),
+                      amount: Math.max(0, Number(en.amount) || 0),
+                      type:
+                        en.type === 'withdraw'
+                          ? ('withdraw' as const)
+                          : ('deposit' as const),
+                      note: String(en.note || '').trim().slice(0, 160),
+                      time: String(en.time || '').slice(0, 60),
+                    }))
+                : [],
+            }));
+          saveSavings(safeSavings);
+        }
+
+        if (Array.isArray(parsed.recurringBills)) {
+          const safeBills: RecurringBill[] = parsed.recurringBills
+            .filter((b: unknown) => b && typeof b === 'object')
+            .map((b: RecurringBill) => ({
+              id: Number.isFinite(Number(b.id))
+                ? Number(b.id)
+                : Date.now() + Math.floor(Math.random() * 10000),
+              name: String(b.name || '').trim().slice(0, 120),
+              amount: Math.max(0, Number(b.amount) || 0),
+              dueDay: Math.max(1, Math.min(31, Number(b.dueDay) || 5)),
+              category: String(b.category || 'housing').slice(0, 50),
+              paidMonths: Array.isArray(b.paidMonths)
+                ? b.paidMonths
+                    .filter((m) => typeof m === 'string' && /^\d{4}-\d{2}$/.test(m))
+                : [],
+            }));
+          saveBills(safeBills);
+        }
+
+        if (parsed.settings && typeof parsed.settings === 'object') {
+          const validCardThemes = new Set([
+            'emerald',
+            'mint',
+            'obsidian',
+            'royal',
+            'burgundy',
+            'bronze',
+            'amethyst',
+            'ocean',
+            'platinum',
+          ]);
+          setSettings((prev) => ({
+            theme:
+              parsed.settings.theme === 'dark'
+                ? 'dark'
+                : parsed.settings.theme === 'light'
+                ? 'light'
+                : prev.theme,
+            numerals:
+              parsed.settings.numerals === 'bn'
+                ? 'bn'
+                : parsed.settings.numerals === 'en'
+                ? 'en'
+                : prev.numerals,
+            cardTheme: validCardThemes.has(parsed.settings.cardTheme)
+              ? parsed.settings.cardTheme
+              : prev.cardTheme,
+          }));
         }
 
         if (Array.isArray(parsed.contacts)) {
@@ -1156,6 +1439,7 @@ export function useFinanceStore() {
     securityConfig,
     isAppLocked,
     saveAppSecurity,
+    updateAutoLockSeconds,
     updateAppPinOnly,
     disableAppSecurity,
     verifyAppPin,

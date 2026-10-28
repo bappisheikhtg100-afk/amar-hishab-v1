@@ -3,8 +3,8 @@ import {
   ArrowLeft,
   CalendarClock,
   Check,
-  PiggyBank,
   Plus,
+  Target,
   Trash2,
 } from 'lucide-react';
 import {
@@ -197,7 +197,7 @@ export function SavingsBillsView({
               : 'text-slate-500'
           }`}
         >
-          <PiggyBank className="w-4 h-4" />
+          <Target className="w-4 h-4" />
           <span>সঞ্চয় লক্ষ্যমাত্রা</span>
         </button>
         <button
@@ -242,7 +242,7 @@ export function SavingsBillsView({
 
           {savingsGoals.length === 0 ? (
             <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 py-14 px-6 text-center">
-              <PiggyBank className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+              <Target className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
               <p className="text-sm text-slate-500">কোনো সঞ্চয় লক্ষ্য নেই</p>
             </div>
           ) : (

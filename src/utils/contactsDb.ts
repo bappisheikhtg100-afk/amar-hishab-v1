@@ -150,24 +150,42 @@ export async function exportContactsJson(
   );
 }
 
+export function sanitizePhotoDataUrl(url?: unknown): string | undefined {
+  if (typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  if (/^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+  return undefined;
+}
+
 export async function importContactsJson(jsonText: string): Promise<{
   importedCount: number;
   groups: ContactGroupMap;
 } | null> {
   try {
     const parsed = JSON.parse(jsonText);
-    if (!parsed || !Array.isArray(parsed.contacts)) return null;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.contacts)) {
+      return null;
+    }
 
     const currentGroups = loadContactGroups();
     const mergedGroups: ContactGroupMap = { ...currentGroups };
 
     if (parsed.groups && typeof parsed.groups === 'object') {
       Object.entries(parsed.groups as ContactGroupMap).forEach(([g, subs]) => {
-        const existingSubs = new Set(mergedGroups[g] || []);
+        if (g === '__proto__' || g === 'constructor' || g === 'prototype') return;
+        const safeGroup = String(g).trim().slice(0, 60);
+        if (!safeGroup) return;
+        const existingSubs = new Set(mergedGroups[safeGroup] || []);
         if (Array.isArray(subs)) {
-          subs.forEach((s) => existingSubs.add(s));
+          subs.forEach((s) => {
+            if (typeof s === 'string' && s.trim()) {
+              existingSubs.add(s.trim().slice(0, 60));
+            }
+          });
         }
-        mergedGroups[g] = Array.from(existingSubs);
+        mergedGroups[safeGroup] = Array.from(existingSubs);
       });
     }
 
@@ -177,17 +195,37 @@ export async function importContactsJson(jsonText: string): Promise<{
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       for (const c of parsed.contacts as ContactItem[]) {
-        if (c && c.name) {
-          const g = c.group || 'অন্যান্য';
-          const sg = c.subGroup || 'সাধারণ';
+        if (c && typeof c === 'object' && typeof c.name === 'string' && c.name.trim()) {
+          const g = String(c.group || 'অন্যান্য').trim().slice(0, 60) || 'অন্যান্য';
+          const sg = String(c.subGroup || 'সাধারণ').trim().slice(0, 60) || 'সাধারণ';
+          if (g === '__proto__' || g === 'constructor') continue;
           if (!mergedGroups[g]) mergedGroups[g] = [];
           if (!mergedGroups[g].includes(sg)) mergedGroups[g].push(sg);
           store.put({
-            ...c,
-            id: c.id || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            id:
+              typeof c.id === 'string' && c.id.trim()
+                ? c.id.trim().slice(0, 80)
+                : `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            name: c.name.trim().slice(0, 120),
+            phone: String(c.phone || '').trim().slice(0, 40),
+            secondaryPhone: c.secondaryPhone
+              ? String(c.secondaryPhone).trim().slice(0, 40)
+              : undefined,
+            email: c.email ? String(c.email).trim().slice(0, 120) : undefined,
+            address: c.address ? String(c.address).trim().slice(0, 240) : undefined,
+            organization: c.organization
+              ? String(c.organization).trim().slice(0, 120)
+              : undefined,
+            bloodGroup: c.bloodGroup
+              ? String(c.bloodGroup).trim().slice(0, 10)
+              : undefined,
+            notes: c.notes ? String(c.notes).trim().slice(0, 500) : undefined,
             group: g,
             subGroup: sg,
-            createdAt: c.createdAt || Date.now(),
+            photoDataUrl: sanitizePhotoDataUrl(c.photoDataUrl),
+            createdAt: Number.isFinite(Number(c.createdAt))
+              ? Number(c.createdAt)
+              : Date.now(),
           });
           count++;
         }
